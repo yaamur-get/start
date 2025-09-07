@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تدشين المقر</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --btn-bg: #ffffff;
+      --btn-border: #dbe3ea;
+      --brand: #0b5d3b; /* أخضر داكن متناسق مع الشعار */
+      --text: #0e1116;
+      --shadow: 0 10px 30px rgba(0,0,0,.08);
+      --ring: rgba(11,93,59,.15);
+      --duration: 1000ms; /* مدة كل خطوة */
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Kufi Arabic", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      transition: background 800ms ease;
+    }
+
+    /* الحاوية الرئيسية */
+    .wrap {
+      display: grid;
+      place-items: center;
+      gap: 28px;
+    }
+
+    /* زر اللوقو */
+    .logo-button {
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      border-radius: 24px;
+      padding: 28px 36px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+      position: relative;
+      outline: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .logo-button img {
+      width: clamp(160px, 24vw, 320px);
+      height: auto;
+      display: block;
+    }
+    .logo-button::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      border-radius: 28px;
+      box-shadow: 0 0 0 0 var(--ring);
+      transition: box-shadow .2s ease;
+    }
+    .logo-button:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(0,0,0,.12); }
+    .logo-button:active { transform: translateY(0); box-shadow: var(--shadow); }
+    .logo-button:focus-visible::after { box-shadow: 0 0 0 8px var(--ring); }
+
+    /* طبقة العداد (تظهر بعد الضغط) */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.96);
+      transition: background 600ms ease, opacity 300ms ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* عداد دائري احترافي عبر SVG */
+    .countdown {
+      width: clamp(180px, 28vw, 320px);
+      height: clamp(180px, 28vw, 320px);
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+    .countdown__number {
+      position: absolute;
+      font-size: clamp(56px, 8vw, 96px);
+      font-weight: 800;
+      color: var(--brand);
+      line-height: 1;
+    }
+    .countdown__label {
+      position: absolute;
+      bottom: 14px;
+      font-size: clamp(12px, 1.6vw, 16px);
+      color: #5b6b75;
+      letter-spacing: .5px;
+    }
+    .ring {
+      transform: rotate(-90deg); /* البداية من الأعلى */
+    }
+    .ring circle {
+      fill: none;
+      stroke-width: 14;
+      stroke-linecap: round;
+    }
+    .ring__bg { stroke: #e7eef3; }
+    .ring__fg {
+      stroke: var(--brand);
+      stroke-dasharray: 100 100;  /* سنضبط النسبة بالـ JS */
+      stroke-dashoffset: 100;
+      transition: stroke-dashoffset var(--duration) ease;
+      filter: drop-shadow(0 6px 16px rgba(11,93,59,.25));
+    }
+
+    /* شاشة “الطفاء” */
+    .blackout {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      transition: opacity 800ms ease;
+      pointer-events: none;
+    }
+    .blackout.on { opacity: 1; }
+
+    /* تقليل الحركة للي يفعّل خيار reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      .logo-button,
+      .ring__fg {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <button class="logo-button" id="launchBtn" aria-label="بدء التدشين">
+      <img src="./لقطة شاشة 2025-09-07 173521.png" alt="لوقو" />
+    </button>
+  </div>
+
+  <!-- طبقة العداد -->
+  <div class="overlay" id="overlay" aria-hidden="true">
+    <div class="countdown" role="status" aria-live="polite">
+      <!-- حلقة SVG -->
+      <svg class="ring" viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true">
+        <!-- خلفية الحلقة -->
+        <circle class="ring__bg" cx="50" cy="50" r="42"></circle>
+        <!-- التقدم -->
+        <circle class="ring__fg" id="ringFg" cx="50" cy="50" r="42"></circle>
+      </svg>
+      <div class="countdown__number" id="countNum">1</div>
+     
+    </div>
+  </div>
+
+  <!-- شاشة الإطفاء -->
+  <div class="blackout" id="blackout"></div>
+
+  <script>
+    const launchBtn = document.getElementById('launchBtn');
+    const overlay   = document.getElementById('overlay');
+    const ringFg    = document.getElementById('ringFg');
+    const countNum  = document.getElementById('countNum');
+    const blackout  = document.getElementById('blackout');
+
+    // حساب محيط الدائرة للتقدم (100 = كامل)
+    const R = 42;
+    const CIRC = 2 * Math.PI * R;
+    ringFg.style.strokeDasharray = `${CIRC} ${CIRC}`;
+    ringFg.style.strokeDashoffset = CIRC;
+
+    function setProgress(percent) {
+      const offset = CIRC * (1 - percent / 100);
+      ringFg.style.strokeDashoffset = offset;
+    }
+
+    launchBtn.addEventListener('click', () => {
+      // إظهار طبقة العداد وإخفاء الزر
+      launchBtn.style.visibility = 'hidden';
+      overlay.classList.add('show');
+      overlay.setAttribute('aria-hidden', 'false');
+
+      // عداد 1 → 2 → 3 مع تعبئة الحلقة 33% ثم 66% ثم 100%
+      let step = 1;
+      const steps = [
+        {n: 1, p: 33},
+        {n: 2, p: 66},
+        {n: 3, p: 100},
+      ];
+
+      // تشغيل أول حالة مباشرة
+      countNum.textContent = steps[0].n;
+      setProgress(steps[0].p);
+
+      const timer = setInterval(() => {
+        step++;
+        if (step <= steps.length) {
+          countNum.textContent = steps[step-1].n;
+          setProgress(steps[step-1].p);
+        } else {
+          clearInterval(timer);
+          // انتقال إلى شاشة سوداء
+          overlay.style.opacity = 0;
+          document.body.style.background = '#000';
+          blackout.classList.add('on');
+          // إخفاء عناصر العداد بعد الإطفاء
+          setTimeout(() => {
+            overlay.remove();
+          }, 800);
+        }
+      }, 1000); // كل ثانية
+    });
+  </script>
+</body>
+</html>
